@@ -1,0 +1,77 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'">
+    <title>TitleBarOverlay + DevTools Dock Right Repro</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body {
+        height: 100%;
+        margin: 0;
+        background: #111111;
+        color: #e5e7eb;
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      }
+      /* Draggable region placed immediately BELOW the overlay using env(titlebar-area-height) */
+      .drag-region {
+        app-region: drag;
+        /* Start directly below the OS overlay so events reach the page */
+        position: fixed;
+        top: env(titlebar-area-height, 36px);
+        left: 0;
+        width: 100%;
+        height: 28px; /* a slim draggable bar */
+        background: #111111;
+        z-index: 9999;
+      }
+      .content {
+        
+        margin-top: 36px;
+        padding: 24px;
+        line-height: 1.6;
+      }
+      a { color: #93c5fd; }
+      code { background: #1f2937; padding: 2px 6px; border-radius: 4px; }
+      .pill { display: inline-block; background:#1f2937; padding:2px 8px; border-radius:999px; margin: 0 4px; }
+          .note{opacity:.85;margin-top:12px}
+    </style>
+  </head>
+  <body>
+    
+    <div class="content">
+      <h1>Window Controls Overlay + DevTools Dock Right</h1>
+
+      <h2>Reproduction summary</h2>
+      <ul>
+        <li>Window uses <code>titleBarOverlay</code> (Window Controls Overlay) so the native caption buttons show while the titlebar is invisible.</li>
+        <li>Content is rendered in a <strong>WebContentsView</strong> positioned exactly under the overlay.</li>
+        <li>On startup we call <code>openDevTools({ mode: 'right' })</code> to request dock‑right.</li>
+        <li><strong>Observed regression:</strong> immediately after launch, DevTools frequently <em>undocks</em> despite requesting right‑dock.</li>
+        <li><strong>Press <kbd>F12</kbd></strong> at any time to reopen DevTools (we explicitly re‑request <code>mode: 'right'</code> on that key).</li>
+      </ul>
+      <h2>Debugging strategies for Electron maintainers</h2>
+      <ol>
+        <li><strong>Verify overlay metrics</strong> — confirm the reserved overlay height matches <code>titleBarOverlay.height</code> and that the child view’s bounds start at exactly that Y (no overlap).</li>
+        <li><strong>Check draggable regions</strong> — the draggable strip lives in the <em>BrowserWindow</em> DOM (not the child view). Overlay regions don’t forward DOM events; ensure drag works via <code>app-region: drag</code>.</li>
+        <li><strong>Inspect dock state restore</strong> — compare Chromium’s persisted DevTools state with overlay on vs. off. Does overlay mode bypass or override the stored right-dock preference?</li>
+        <li><strong>Force dock side only as a hint</strong> — <code>openDevTools({ mode: 'right' })</code> is a hint; Chromium may override. Validate whether overlay flips it to another mode or undocked.</li>
+        <li><strong>Platform parity</strong> — reproduce on Windows and Linux. On macOS, ensure traffic lights + overlay don’t affect docking.</li>
+        <li><strong>Regression window</strong> — test Electron 29 → 38 to see when the behavior changed (if applicable).</li>
+        <li><strong>Minimal layout</strong> — no menus, no extra CSS shims, no injected devtools CSS.</li>
+      </ol>
+
+      <h2>How to reproduce</h2>
+      <ol>
+        <li>Run <code>npm i && npm start</code>.</li>
+        <li>The app opens with DevTools requested to dock <strong>right</strong>.</li>
+        <li>Close DevTools.</li>
+        <li><strong>Press F12</strong> to reopen DevTools.</li>
+        <li><strong>Expected:</strong> DevTools stays docked right. <strong>Actual:</strong> with overlay enabled, it often doesn’t persist.</li>
+      </ol>
+
+      <p class="note">References: WebContentsView API, Custom Title Bar / Window Controls Overlay, Custom Window Interactions (<code>app-region</code>), and <code>webContents.openDevTools</code> options.</p>
+
+    </div>
+  </body>
+</html>
